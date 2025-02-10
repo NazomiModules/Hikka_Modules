@@ -39,7 +39,7 @@ class AutoMIRAGE(loader.Module):
             "city": 3610,
             "business": 43210, 
             "mining": 3010,
-            "mine": 610
+            "mine": 3100
         }
         self.last_executed = self.db.get('AutoMIRAGE', 'last_executed', {key: 0 for key in self.delays})
         self.action_delay = 3
