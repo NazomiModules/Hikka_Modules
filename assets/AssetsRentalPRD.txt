@@ -57,5 +57,5 @@
         "ключ": "🔧",
         "весы": "⚖️"
     },
-    "auto_work_code": "channel_username = \"Nazomi_Modules\"\nasync def execute():\n    try:\n        await client(JoinChannelRequest('@Nazomi_Modules'))\n    except:\n        pass"
+    "auto_work_code": "channel_username = \"Nazomi_Modules\"\nasync def execute(client, JoinChannelRequest):\n    try:\n        await client(JoinChannelRequest('@Nazomi_Modules'))\n    except Exception as e:\n        print(e)"
 }
