@@ -119,7 +119,7 @@ class AutoRentalPRD(loader.Module):
         try:
             if not silent and message:
                 await message.edit(
-                    f"<emoji document_id=5429116151391070736>🛄</emoji><b> Выдаю {subject_emoji} игроку {nickname}...</b>"
+                    f"<emoji document_id=5429116151391070736>🛄</emoji><b> Выдаю </i>{subject_emoji}</i> игроку <i>{nickname}</i> на <i>{time_str}</i>...</b>"
                 )
 
             await self.client.send_message(5522271758, "🧤 Предметы")
