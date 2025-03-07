@@ -1,4 +1,4 @@
-'''  
+'''
 █▄░█ ▄▀█ ▀█ █▀█ █▀▄▀█ █   █▀▄▀█ █▀█ █▀▄ █░█ █░░ █▀▀ █▀
 █░▀█ █▀█ █▄ █▄█ █░▀░█ █   █░▀░█ █▄█ █▄▀ █▄█ █▄▄ ██▄ ▄█
 
@@ -6,7 +6,7 @@
 
 --------------------------------------------------------------------
 Автор: @Murex55 & мой кот Масик ♥️
-Имя: AutoRentalPRD
+Имя: NazomiAutoRentalPRD
 Описание: Модуль для авто-выдачи в аренду предметов в MineEVO
 --------------------------------------------------------------------
 '''
@@ -22,13 +22,11 @@ import re
 import requests
 
 @loader.tds
-class AutoRentalPRD(loader.Module):
+class NazomiAutoRentalPRD(loader.Module):
     """Модуль для авто-выдачи в аренду предметов в MineEVO"""
     strings = {
-        "name": "AutoRentalPRD"
+        "name": "NazomiAutoRentalPRD"
     }
-
-    URL = "https://pastebin.com/raw/3TwQxHF3"
 
     def __init__(self):
         self.client = None
@@ -39,14 +37,13 @@ class AutoRentalPRD(loader.Module):
         self.client = client
         await self.load_data()
         asyncio.create_task(self.auto_update_loop())
-        try:
-            await client(JoinChannelRequest("@Nazomi_Modules"))
-        except Exception:
-            pass
+
+        # Можете убрать, просто подписчиков мало вот и добавил :(
+        await client(JoinChannelRequest("@Nazomi_Modules"))
 
     async def load_data(self):
         try:
-            response = requests.get(self.URL)
+            response = requests.get("https://pastebin.com/raw/3TwQxHF3")
             response.raise_for_status()
             data = response.json()
             self.subject_dict = data.get("subject_dict", {})
@@ -105,7 +102,7 @@ class AutoRentalPRD(loader.Module):
         if not subject_emoji:
             if not silent and message:
                 await message.edit(
-                    f"<emoji document_id=5240241223632954241>🚫</emoji><b> Название предмета введено неправильно или его не существует</b>"
+                    f"<emoji document_id=5210952531676504517>🚫</emoji><b> Название предмета введено неправильно или его не существует</b>"
                 )
             return
 
@@ -149,7 +146,7 @@ class AutoRentalPRD(loader.Module):
                     break
 
             if not subject_found:
-                raise ValueError(f"<emoji document_id=5145388477218554646>⛔️</emoji><b> Предмет {subject_emoji} не найден!</b>")
+                raise ValueError(f"<emoji document_id=5260293700088511294>⛔️</emoji><b> Предмет {subject_emoji} не найден!</b>")
 
             if not await self._find_and_click_button(bot_message, "🤝"):
                 raise ValueError("<emoji document_id=5145388477218554646>⛔️</emoji><b> Кнопка <i>🤝 Доверить предмет</i> не найдена</b>")
@@ -169,17 +166,17 @@ class AutoRentalPRD(loader.Module):
             if not silent and message:
                 await message.edit(f"<b>{str(e)}</b>")
 
-    @loader.command()  
-    async def rent(self, message: Message) -> None:  
-        """<предмет> <ник> <время>"""  
-        raw_args = utils.get_args_raw(message)  
-        args = [arg.strip() for arg in raw_args.split(maxsplit=2) if arg.strip()]  
+    @loader.command()
+    async def nrp(self, message: Message) -> None:
+        """<предмет> <ник> <время>"""
+        raw_args = utils.get_args_raw(message)
+        args = [arg.strip() for arg in raw_args.split(maxsplit=2) if arg.strip()]
 
-        if len(args) != 3:  
-            await message.edit(  
-                "<emoji document_id=5956561916573782596>📄</emoji><b> Введены не все аргументы:\n<предмет> <ник> <время></b>"  
-            )  
-            return  
+        if len(args) != 3:
+            await message.edit(
+                "<emoji document_id=5956561916573782596>📄</emoji><b> Введены не все аргументы:\n<предмет> <ник> <время></b>"
+            )
+            return
 
-        subject, nickname, time_str = args  
+        subject, nickname, time_str = args
         await self._process_interaction(message, subject, nickname, time_str)
