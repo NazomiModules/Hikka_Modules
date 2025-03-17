@@ -321,7 +321,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
             return False
         for row in message.buttons:
             for button in row:
-                if exclude_handshake and "🤝" in button.text:
+                if exclude_handshake and ("🤝" in button.text or "🖐" in button.text):
                     continue
                 if search_text in button.text:
                     try:
