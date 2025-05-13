@@ -12,11 +12,10 @@
 '''
 
 # meta developer: @Nazomi_Modules
-__version__ = (1, 0, 0)
+__version__ = (1, 5, 2)
 
 from .. import loader, utils
 from telethon.tl.types import Message
-from telethon.tl.functions.channels import JoinChannelRequest
 from telethon import events
 import asyncio
 import re
@@ -31,9 +30,9 @@ class NazomiAutoClanRentalPRD(loader.Module):
 
     config = loader.ModuleConfig(
         loader.ConfigValue(
-            "allowed_chat_id",
-            None,
-            "ID чата для выдачи"
+            "allowed_chat_ids",
+            [],
+            "Список чатов для выдачи"
         ),
         loader.ConfigValue(
             "blacklist",
@@ -46,13 +45,21 @@ class NazomiAutoClanRentalPRD(loader.Module):
             "Время аренды (например, 5м, 1ч, 1д)"
         ),
         loader.ConfigValue(
+            "money",
+            10,
+            "Количество денег в переводе"
+        ),
+        loader.ConfigValue(
             "command_trigger",
             "~Выдай",
             "Префикс для команды выдачи"
+        ),
+        loader.ConfigValue(
+            "item_times",
+            {},
+            "Индивидуальные времена"
         )
     )
-
-    ALLOWED_CHAT_ID = None
 
     def __init__(self):
         self.client = None
@@ -60,19 +67,19 @@ class NazomiAutoClanRentalPRD(loader.Module):
         self.work_command = None
         self.command_trigger = "~Выдай"
         self.current_pattern = r'^' + re.escape(self.command_trigger)
+        self.item_times = {}
 
     async def client_ready(self, client, db):
         self.client = client
-        self.ALLOWED_CHAT_ID = self.config.get("allowed_chat_id")
+        self.allowed_chat_ids = set(self.config.get("allowed_chat_ids") or [])
         self.blacklist = set(self.config.get("blacklist"))
         self.time = self.config.get("time")
+        self.money = self.config.get("money")
         self.command_trigger = self.config.get("command_trigger")
+        self.item_times = self.config.get("item_times") or {}
         self.current_pattern = r'^' + re.escape(self.command_trigger)
         await self.load_data()
         asyncio.create_task(self.auto_update_loop())
-
-        # Можете убрать, просто подписчиков мало вот и добавил :(
-        await client(JoinChannelRequest("@Nazomi_Modules"))
 
         self.client.add_event_handler(
             self.custom_rent_handler,
@@ -108,7 +115,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
             )
             return
 
-        if self.ALLOWED_CHAT_ID is None or event.chat_id != self.ALLOWED_CHAT_ID:
+        if self.allowed_chat_ids and event.chat_id not in self.allowed_chat_ids:
             return
 
         raw_text = event.raw_text
@@ -116,67 +123,76 @@ class NazomiAutoClanRentalPRD(loader.Module):
         args = args_text.split(maxsplit=1)
         if len(args) != 1:
             await event.reply(
-                "<emoji document_id=5382194935057372936>📄</emoji><b> Неверный формат команды. Используйте: {} <предмет></b>".format(self.command_trigger)
+                f"<emoji document_id=5382194935057372936>📄</emoji><b> Неверный формат команды. Используйте: {self.command_trigger} <предмет></b>"
             )
             return
-        subject = args[0]
+        subject = args[0].lower()
+        subject_emoji = self.subject_dict.get(subject)
+        if not subject_emoji:
+            await event.reply(
+                f"<emoji document_id=5210952531676504517>🚫</emoji><b> Название предмета введено неправильно или его не существует</b>"
+            )
+            return
 
         try:
-            await self.client.send_message(self.ALLOWED_CHAT_ID, "Проф", reply_to=event.id)
+            await self.client.send_message(
+                event.chat_id,
+                f"Перевести {self.money}",
+                reply_to=event.id
+            )
             response = await self._wait_for_event(
                 events.NewMessage(
-                    func=lambda e: e.chat_id == self.ALLOWED_CHAT_ID and
+                    func=lambda e: e.chat_id == event.chat_id and
                                    e.sender_id == 5522271758 and
-                                   "Профиль пользователя" in e.raw_text
+                                   e.raw_text.startswith("✔") and
+                                   "перевел" in e.raw_text
                 ),
                 timeout=5
             )
-            pattern = r"Профиль пользователя\s+(.*?):"
-            match = re.search(pattern, response.raw_text, re.DOTALL)
+            pattern = r"✔\s*\S+\s+перевел(?:\(а\))?\s+игроку\s+(\S+)\s*-\s*([\d.]+\$)"
+            match = re.search(pattern, response.raw_text)
             if match:
                 nickname = match.group(1).strip()
             else:
                 await event.reply(
-                    "<emoji document_id=5422683699130933153>🪪</emoji><b> Не удалось получить ник из профиля!</b>"
+                    "<emoji document_id=5422683699130933153>🪪</emoji><b> Не удалось получить ник из ответа о переводу!</b>"
                 )
                 return
         except asyncio.TimeoutError:
             await event.reply(
-                "<emoji document_id=5382194935057372936>⌛</emoji><b> Бот не ответил на запрос профиля.</b>"
+                "<emoji document_id=5382194935057372936>⌛</emoji><b> Бот не ответил на команду перевода.</b>"
             )
             return
         except Exception as e:
             await event.reply(
-                f"<emoji document_id=5395695537687123235>🚨</emoji> Непредвиддимая ошибка: {str(e)}</b>"
+                f"<emoji document_id=5395695537687123235>🚨</emoji> Непредвидимая ошибка: {str(e)}</b>"
             )
             return
 
-        time_str = self.time
-        await self._process_interaction(event.message, subject, nickname, time_str)
+        time_str = self.item_times.get(subject_emoji, self.time)
+        await self._process_interaction(event.message, subject_emoji, nickname, time_str)
 
     @loader.command()
     async def nsc(self, message: Message):
-        """Установить чат для выдачи предметов, нужно просто написать в нужном чате"""
-        try:
-            if message.is_private:
-                await message.edit(
-                    "<emoji document_id=5212959359440527136>💭</emoji><b> Эта не групповой чат!</b>"
-                )
-                return
-
-            chat_id = message.chat_id
-            self.ALLOWED_CHAT_ID = chat_id
-            self.config["allowed_chat_id"] = chat_id
-            await message.edit(f"<emoji document_id=5249478615954906593>✅</emoji><b> Чат для выдачи установлен - <code>{chat_id}</code>!</b>")
-        except Exception as e:
-            if "invalid and can't be used in inline mode" in str(e):
-                await message.edit(
-                    "<emoji document_id=5212959359440527136>💭</emoji><b> Эта не групповой чат!</b>"
-                )
-            else:
-                await message.edit(
-                    f"<emoji document_id=5395695537687123235>🚨</emoji> Непредвиддимая ошибка: {str(e)}</b>"
-                )
+        """Добавить или удалить чат для выдачи предметов"""
+        if message.is_private:
+            await message.edit(
+                "<emoji document_id=5212959359440527136>💭</emoji><b> Это не групповой чат!</b>"
+            )
+            return
+        chat_id = message.chat_id
+        if chat_id in self.allowed_chat_ids:
+            self.allowed_chat_ids.remove(chat_id)
+            self.config["allowed_chat_ids"] = list(self.allowed_chat_ids)
+            await message.edit(
+                f"<emoji document_id=5429627407118116617>➖</emoji><b> Чат удален из выдачи - <code>{chat_id}</code>!</b>"
+            )
+        else:
+            self.allowed_chat_ids.add(chat_id)
+            self.config["allowed_chat_ids"] = list(self.allowed_chat_ids)
+            await message.edit(
+                f"<emoji document_id=5249478615954906593>✅</emoji><b> Чат добавлен в выдачу - <code>{chat_id}</code>!</b>"
+            )
 
     @loader.command()
     async def nbla(self, message: Message):
@@ -194,7 +210,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
         self.config["blacklist"] = list(self.blacklist)
         formatted_user = await self._format_user(user_id)
         await message.edit(
-            f"<emoji document_id=5244819959418206578>➕</emoji><b> Пользователь </b>{formatted_user}<b> добавлен в чёрный список!</b>", parse_mode="html"
+            f"<emoji document_id=5244819959418206578>➕</emoji><b> Пользователь </b>{formatted_user}<b> добавлен в чёрный список!</b>"
         )
 
     @loader.command()
@@ -214,12 +230,12 @@ class NazomiAutoClanRentalPRD(loader.Module):
             self.config["blacklist"] = list(self.blacklist)
             formatted_user = await self._format_user(user_id)
             await message.edit(
-                f"<emoji document_id=5215635927224820367>➖</emoji><b> Пользователь </b>{formatted_user}<b> удален с чёрного списока!</b>", parse_mode="html"
+                f"<emoji document_id=5215635927224820367>➖</emoji><b> Пользователь </b>{formatted_user}<b> удален с чёрного списка!</b>"
             )
         else:
             formatted_user = await self._format_user(user_id)
             await message.edit(
-                f"<emoji document_id=5429627407118116617>😐</emoji><b> Пользователь </b>{formatted_user}<b> и так не находился в чёрном списке!</b>", parse_mode="html"
+                f"<emoji document_id=5429627407118116617>😐</emoji><b> Пользователь </b>{formatted_user}<b> и так не находился в чёрном списке!</b>"
             )
 
     @loader.command()
@@ -237,7 +253,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
             entries.append(formatted_user)
         blacklist_text = "\n".join(entries)
         await message.edit(
-            f"<emoji document_id=5197269100878907942>✍️</emoji><b> Чёрный список:</b>\n{blacklist_text}", parse_mode="html"
+            f"<emoji document_id=5197269100878907942>✍️</emoji><b> Чёрный список:</b>\n{blacklist_text}"
         )
 
     @loader.command()
@@ -258,7 +274,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
         self.time = time_arg
         self.config["time"] = time_arg
         await message.edit(
-            f"<emoji document_id=5382194935057372936>✅</emoji><b> Время выдачи установлено на <code>{time_arg}</code>!</b>"
+            f"<emoji document_id=5382194935057372936>✅</emoji><b> Время выдачи предметов установлено на <code>{time_arg}</code>!</b>"
         )
 
     @loader.command()
@@ -276,7 +292,86 @@ class NazomiAutoClanRentalPRD(loader.Module):
         self.config["command_trigger"] = new_command
         self.current_pattern = r'^' + re.escape(new_command)
         self.client.add_event_handler(self.custom_rent_handler, events.NewMessage(pattern=self.current_pattern))
-        await message.edit(f"<emoji document_id=5870525453822859417>🏷</emoji> Префикс <b>выдачи изменена на </b><code>{new_command}</code>")
+        await message.edit(f"<b><emoji document_id=5870525453822859417>🏷</emoji> Префикс выдачи предметов изменен на </b><code>{new_command}</code>")
+
+    @loader.command()
+    async def nestpr(self, message: Message):
+        """Установить индивидуальное время"""
+        args = utils.get_args(message)
+        if len(args) != 2:
+            await message.edit(
+                "<emoji document_id=5465665476971471368>❌</emoji><b> Укажите название предмета и время!</b>"
+            )
+            return
+
+        item_name = args[0].strip().lower()
+        time_arg = args[1].strip()
+
+        subject_emoji = self.subject_dict.get(item_name)
+        if not subject_emoji:
+            await message.edit(
+                "<emoji document_id=5210952531676504517>🚫</emoji><b> Название предмета введено неправильно или его не существует</b>"
+            )
+            return
+
+        if not self._validate_time_format(time_arg):
+            await message.edit(
+                "<emoji document_id=5382194935057372936>⏱</emoji><b> Неправильный формат времени. Примеры: <code>5м</code>, <code>1ч</code>, <code>1д</code></b>"
+            )
+            return
+
+        self.item_times[subject_emoji] = time_arg
+        self.config["item_times"] = self.item_times
+
+        await message.edit(
+            f"<emoji document_id=5206607081334906820>✔️</emoji><b> Для {subject_emoji} установлено время <code>{time_arg}</code>!</b>"
+        )
+
+    @loader.command()
+    async def nestprd(self, message: Message):
+        """Удалить индивидуальное время"""
+        args = utils.get_args(message)
+        if not args:
+            await message.edit(
+                "<b><emoji document_id=5465665476971471368>❌</emoji> Укажите название предмета для удаления индивидуального времени!</b>"
+            )
+            return
+        item_name = args[0].strip().lower()
+
+        subject_emoji = self.subject_dict.get(item_name)
+        if not subject_emoji:
+            await message.edit(
+                "<emoji document_id=5210952531676504517>🚫</emoji><b> Название предмета введено неправильно или его не существует</b>"
+            )
+            return
+
+        if subject_emoji in self.item_times:
+            del self.item_times[subject_emoji]
+            self.config["item_times"] = self.item_times
+            await message.edit(
+                f"<emoji document_id=5215635927224820367>➖</emoji><b> Индивидуальное время для {subject_emoji} удалено!</b>"
+            )
+        else:
+            await message.edit(
+                f"<emoji document_id=5429627407118116617>😐</emoji><b> Для {subject_emoji} не было установлено индивидуального времени!</b>"
+            )
+
+    @loader.command()
+    async def nestprs(self, message: Message):
+        """Показать список индивидуальных времен"""
+        if not self.item_times:
+            await message.edit(
+                "<emoji document_id=5197269100878907942>✍️</emoji><b> Нет установленных индивидуальных времён!</b>"
+            )
+            return
+
+        entries = []
+        for emoji, time_value in self.item_times.items():
+            entries.append(f"<b>{emoji} - <code>{time_value}</code></b>")
+        times_text = "\n".join(entries)
+        await message.edit(
+            f"<emoji document_id=5382194935057372936>⏱</emoji><b> Индивидуальные времена:</b>\n{times_text}"
+        )
 
     async def load_data(self):
         try:
@@ -298,10 +393,12 @@ class NazomiAutoClanRentalPRD(loader.Module):
                     if len(parts) >= 2:
                         subject = parts[0].strip().lower()
                         nickname = parts[1].strip()
-                        await self._process_interaction(None, subject, nickname, self.time, silent=True)
+                        subject_emoji = self.subject_dict.get(subject)
+                        if subject_emoji:
+                            time_str = self.item_times.get(subject_emoji, self.time)
+                            await self._process_interaction(None, subject_emoji, nickname, time_str, silent=True)
                 except Exception:
                     pass
-            await asyncio.sleep(180)
 
     def _validate_time_format(self, time_str: str) -> bool:
         return bool(re.match(r"^\d+[мчд]$", time_str))
@@ -332,15 +429,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
                         return False
         return False
 
-    async def _process_interaction(self, message: Message, subject: str, nickname: str, time_str: str, silent: bool = False) -> None:
-        subject_emoji = self.subject_dict.get(subject.lower())
-        if not subject_emoji:
-            if not silent and message:
-                await message.reply(
-                    f"<emoji document_id=5210952531676504517>🚫</emoji><b> Название предмета введено неправильно или его не существует/не расходник</b>"
-                )
-            return
-
+    async def _process_interaction(self, message: Message, subject_emoji: str, nickname: str, time_str: str, silent: bool = False) -> None:
         if not self._validate_time_format(time_str):
             if not silent and message:
                 await message.reply(
@@ -361,15 +450,12 @@ class NazomiAutoClanRentalPRD(loader.Module):
             bot_message = None
             while asyncio.get_event_loop().time() - start_time < 10:
                 bot_messages = await self.client.get_messages(5522271758, limit=1)
-                for msg in bot_messages:
-                    if "👜 Твои предметы" in msg.text:
-                        bot_message = msg
-                        break
-                if bot_message:
+                if bot_messages and "👜 Твои предметы" in bot_messages[0].text:
+                    bot_message = bot_messages[0]
                     break
 
             if not bot_message:
-                raise ValueError("<emoji document_id=5386367538735104399>⌛</emoji> Бот не отвечает</b>")
+                raise ValueError("<emoji document_id=5386367538735104399>⌛</emoji><b> Бот не отвечает</b>")
 
             subject_found = False
             for _ in range(5):
@@ -378,7 +464,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
                 if await self._find_and_click_button(bot_message, subject_emoji, exclude_handshake=True):
                     subject_found = True
                     break
-                if not await self._find_and_click_button(bot_message, "Вперёд »"):
+                if not await self._find_and_click_button(bot_message, "»"):
                     break
 
             if not subject_found:
@@ -387,7 +473,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
             if not await self._find_and_click_button(bot_message, "🤝"):
                 raise ValueError("<emoji document_id=5145388477218554646>⛔️</emoji><b> Кнопка <i>🤝 Доверить предмет</i> не найдена</b>")
 
-            await self.client.send_message(5522271758, f"{nickname} {self.time}", reply_to=bot_message.id)
+            await self.client.send_message(5522271758, f"{nickname} {time_str}", reply_to=bot_message.id)
             await asyncio.sleep(2)
 
             if not await self._find_and_click_button(bot_message, "💜 Доверить"):
@@ -395,7 +481,7 @@ class NazomiAutoClanRentalPRD(loader.Module):
 
             if not silent and status_message:
                 await status_message.edit(
-                    f"<emoji document_id=5380056101473492248>👜</emoji><b> Выдал <i>{subject_emoji}</i> в аренду игроку <i>{nickname}</i> на <i>{self.time}</i></b>"
+                    f"<emoji document_id=5380056101473492248>👜</emoji><b> Выдал <i>{subject_emoji}</i> в аренду игроку <i>{nickname}</i> на <i>{time_str}</i></b>"
                 )
 
         except Exception as e:
