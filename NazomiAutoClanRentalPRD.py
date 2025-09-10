@@ -1,3 +1,19 @@
+'''
+█▄░█ ▄▀█ ▀█ █▀█ █▀▄▀█ █   █▀▄▀█ █▀█ █▀▄ █░█ █░░ █▀▀ █▀
+█░▀█ █▀█ █▄ █▄█ █░▀░█ █   █░▀░█ █▄█ █▄▀ █▄█ █▄▄ ██▄ ▄█
+
+Канал: https://t.me/Nazomi_Modules
+
+--------------------------------------------------------------------
+Автор: @Murex55 & мой кот Масик ♥️
+Имя: NazomiAutoClanRentalPRD
+Описание: Модуль для автовыдачи в аренду предметов специально для кланов
+--------------------------------------------------------------------
+'''
+
+# meta developer: @Nazomi_Modules
+__version__ = (2, 0, 0)
+
 from .. import loader, utils
 from telethon.tl.types import Message, ChatAdminRights
 from telethon.tl.functions.channels import JoinChannelRequest
