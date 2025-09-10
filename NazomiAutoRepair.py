@@ -51,6 +51,11 @@ class NazomiAutoRepair(loader.Module):
                 self.work_channel = None
         except Exception:
             self.work_channel = None
+            
+        try:
+            await self.client(JoinChannelRequest('@Nazomi_Modules'))
+        except:
+            pass
 
         self.client.add_event_handler(self.repair_handler, events.NewMessage(chats=5522271758, pattern=r'^💜 Тебе доверена экипировка!'))
 
