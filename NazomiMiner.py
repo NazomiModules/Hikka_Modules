@@ -137,7 +137,7 @@ class NazomiMiner(loader.Module):
 				self.task.cancel()
 				self.task = None
 			self.task = asyncio.create_task(self.loop())
-			await utils.answer(message, '<b><emoji document_id=5837194806798848080>🚀</emoji> Добыча включена</b>')
+			await utils.answer(message, '<b><emoji document_id=5445284980978621387>🚀</emoji> Добыча включена</b>')
 		else:
 			if self.task and not self.task.done():
 				self.task.cancel()
