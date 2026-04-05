@@ -5,19 +5,19 @@
 Канал: https://t.me/Nazomi_Modules
 
 --------------------------------------------------------------------
-Автор: @Murex55 & мой кот Масик ♥️
-Имя: NazomiAutoRepair
+Автор: @Murex55
+Название: NazomiAutoRepair
 Описание: Модуль для автопочинки экипировки, которую тебе дают
 --------------------------------------------------------------------
 '''
 
 # meta developer: @Nazomi_Modules
-__version__ = (1, 0, 0)
+__version__ = (1, 0, 1)
 
 from .. import loader, utils
 from telethon.tl.types import Message, ChatAdminRights
 from telethon.tl.functions.channels import InviteToChannelRequest
-from telethon import events, functions, errors
+from telethon import events, functions
 import asyncio
 import re
 import time
@@ -37,8 +37,7 @@ class NazomiAutoRepair(loader.Module):
         self.client = None
         self.work_channel = None
 
-    async def client_ready(self, client, db):
-        self.client = client
+    async def client_ready(self):
         self.lock = asyncio.Lock()
 
         try:
@@ -144,7 +143,7 @@ class NazomiAutoRepair(loader.Module):
                 msgs = await self.client.get_messages(work_chat, limit=1)
             for m in msgs:
                 try:
-                    if m and m.text and ('🧰 Твоя экипировка' in m.text) and getattr(m, 'sender_id', None) == 5522271758:
+                    if m and m.raw_text and ('🧰 Экипировка' in m.raw_text) and getattr(m, 'sender_id', None) == 5522271758:
                         bot_message = m
                         break
                 except Exception:
@@ -152,14 +151,12 @@ class NazomiAutoRepair(loader.Module):
             if bot_message:
                 break
 
-        async def try_click(msg, required_texts, exclude_handshake=False):
+        async def try_click(msg, required_texts):
             msg = await self.refresh_message(msg)
             if not msg or not msg.buttons:
                 return False
             for row in msg.buttons:
                 for btn in row:
-                    if exclude_handshake and ('🖐' in btn.text):
-                        continue
                     if isinstance(required_texts, (list, tuple, set)):
                         tokens = list(required_texts)
                     else:
@@ -185,7 +182,7 @@ class NazomiAutoRepair(loader.Module):
 
             required_tokens = ['🤝'] + list(inverted_emojis)
 
-            if await try_click(bot_message, required_tokens, exclude_handshake=True):
+            if await try_click(bot_message, required_tokens):
                 found = True
                 break
 
