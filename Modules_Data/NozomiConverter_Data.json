@@ -1,4 +1,4 @@
-i{
+{
   "strings": {
     "error": "<b><emoji document_id=5447644880824181073>⚠️</emoji> Пожалуйста, укажите количество и тип кейса/эк</b>\n<b>Примеры: <code>{prefix}nc 1 миф 4 эк</code> или <code>{prefix}nc 1 🕋 4 💳</code></b>",
     "last_update": "<b><emoji document_id=5231200819986047254>📊</emoji> Последнее обновление курсов: <code>13</code> апреля</b>",
