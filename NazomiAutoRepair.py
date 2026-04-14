@@ -12,7 +12,7 @@
 '''
 
 # meta developer: @Nazomi_Modules
-__version__ = (1, 0, 1)
+__version__ = (1, 0, 2)
 
 from .. import loader, utils
 from telethon.tl.types import Message, ChatAdminRights
@@ -64,11 +64,6 @@ class NazomiAutoRepair(loader.Module):
 
         text = event.raw_text or ""
         lines = text.splitlines()
-        nick_match = re.search(r'Игрок\s+(\S+)\s+доверил тебе', text)
-        nickname = nick_match.group(1) if nick_match else None
-    
-        if not nickname:
-            return
     
         try:
             eq_line_index = next(i for i, line in enumerate(lines) if "доверил тебе" in line) + 1
@@ -82,7 +77,7 @@ class NazomiAutoRepair(loader.Module):
 
         inverted_emojis = "".join(emojis_list[::-1])
 
-        await self.repair_interaction(nickname, inverted_emojis)
+        await self.repair_interaction(inverted_emojis)
         await asyncio.sleep(2)
         
     @loader.command()
@@ -122,7 +117,7 @@ class NazomiAutoRepair(loader.Module):
         except Exception:
             return message
 
-    async def repair_interaction(self, nickname: str, inverted_emojis: str):
+    async def repair_interaction(self, inverted_emojis: str):
         start_time = time.time()
         work_chat = getattr(self, 'work_channel', None) or 5522271758
         try:
